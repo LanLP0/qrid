@@ -7,5 +7,5 @@ https://lanlp0.github.io/qrid/
 
 ## Specifications
 | Version | Required Fields     |
-| :------ | ------------------: |
+| :------ | :------------------ |
 | v1      | Name, Phone         |
