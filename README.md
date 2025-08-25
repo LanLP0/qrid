@@ -6,6 +6,6 @@ App for generating specific QR codes that serve to identify people
 https://lanlp0.github.io/qrid/
 
 ## Specifications
-| Version | Required Fields     |
-| :------ | ------------------: |
-| v1      | Name, Phone         |
+| Variant | Required Fields                    |
+| :------ | ---------------------------------: |
+| v1      | Name, PhoneFirst4, Salt, PhoneHash |

@@ -6,31 +6,33 @@
           <span>Thông tin</span>
         </div>
       </template>
-      <el-form ref="formRef" :model="this" :rules="rules" label-width="auto" label="right">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="auto" label="right">
         <el-form-item label="Họ và Tên" prop="name">
-          <el-input v-model="name" clearable />
+          <el-input v-model="form.name" maxlength="20" show-word-limit clearable @input="checkFormValid" />
         </el-form-item>
         <el-form-item label="Số Điện Thoại" prop="phone">
-          <el-input v-model="phone" clearable />
+          <el-input v-model.trim="form.phone" minlength="10" maxlength="10" show-word-limit clearable
+            @input="checkFormValid" />
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" size="large" :loading="loading" @click="saveToFile">Lưu QR<el-icon
-              class="el-icon--right">
+          <el-button type="primary" size="large" :loading="loading" :disabled="!formValid" @click="saveToFile">
+            Lưu QR
+            <el-icon class="el-icon--right">
               <Download />
-            </el-icon></el-button>
+            </el-icon>
+          </el-button>
         </el-form-item>
       </el-form>
     </el-card>
-    <el-card class="box-card" body-style="
-        background: white;
-      ">
+
+    <el-card class="box-card" body-style="background: white;">
       <template #header>
         <div class="card-header">
           <span>Preview</span>
         </div>
       </template>
-      <div v-loading="loading">
+      <div v-loading="loading" style="padding-bottom: 1rem;" ref="previewPane">
         <svg :width="size" :height="size" id="svgcontainer" ref="svgcontainer">
           <svg :width="size" :height="size" version="1.1" xmlns="http://www.w3.org/2000/svg"
             xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -38,8 +40,7 @@
           </svg>
         </svg>
         <div class="info-preview">
-          <p><strong>{{ name }}</strong></p>
-          <p>{{ phone }}</p>
+          <p><strong>{{ form.name }}</strong></p>
         </div>
       </div>
     </el-card>
@@ -61,6 +62,8 @@ import {
 import { Download } from "@element-plus/icons-vue";
 import { saveAs } from "file-saver";
 import QRCode from "qrcode-svg";
+import sjcl from 'sjcl';
+import html2canvas from "html2canvas";
 
 export default {
   name: "App",
@@ -78,85 +81,84 @@ export default {
     loading: ElLoading.directive,
   },
   data() {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*";
+    const length = 10;
+    let salt = "";
+    for (let i = 0; i < length; i++) {
+      salt += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
     return {
-      name: "",
-      phone: "",
+      form: {
+        name: "",
+        phone: "",
+      },
       size: 350,
       exportType: "PNG",
       exportSize: 1200,
       loading: false,
+      formValid: false,
+      salt: salt,
       rules: {
-        name: [{ required: true, message: "Vui lòng nhập họ và tên", trigger: "blur" }],
-        phone: [{ required: true, message: "Vui lòng nhập số điện thoại", trigger: "blur" }],
+        name: [
+          { required: true, message: "Vui lòng nhập họ và tên", trigger: "change" },
+        ],
+        phone: [
+          {
+            required: true,
+            message: "Vui lòng nhập số điện thoại",
+            trigger: "change",
+          },
+          {
+            validator: (rule, value, callback) => {
+              const trimmed = (value || "").trim();
+              const regex = /^\d{10}$/;
+              if (!regex.test(trimmed)) {
+                callback(new Error("Số điện thoại phải có 10 chữ số"));
+              } else {
+                callback();
+              }
+            },
+            trigger: "change",
+          },
+        ],
       },
     };
   },
   methods: {
-    export() {
+    checkFormValid() {
+      this.$refs.formRef.validate((valid) => {
+        this.formValid = valid;
+      });
+    },
+    async export() {
       const fileName = this.fileName;
+      const node = this.$refs.previewPane;
 
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      const size = this.exportSize;
-      const textHeight = 60;
-      const padding = 20;
+      // Take screenshot of preview pane
+      const canvas = await html2canvas(node, { backgroundColor: "#ffffff" });
 
-      const tempImg = new Image();
-      tempImg.onload = () => {
-        canvas.width = size + padding * 2;
-        canvas.height = size + textHeight + padding * 2;
-
-        // Fill white background
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Draw QR image
-        ctx.drawImage(tempImg, padding, padding, size, size);
-
-        // Draw text below
-        ctx.font = "bold 20px sans-serif";
-        ctx.fillStyle = "#000";
-        ctx.textAlign = "center";
-        ctx.fillText(this.name, padding + size / 2, padding + size + textHeight / 2);
-
-        ctx.font = "15px sans-serif";
-        ctx.fillText(this.phone, padding + size / 2, padding + size + textHeight);
-
-        canvas.toBlob((blob) => {
-          saveAs(blob, `${fileName}.png`);
-        });
-      };
-
-      tempImg.src =
-        "data:image/svg+xml;charset=utf-8," +
-        encodeURIComponent(this.$refs.svgcontainer.innerHTML);
+      canvas.toBlob((blob) => {
+        saveAs(blob, `${fileName}.png`);
+      });
     },
     saveToFile() {
       this.$refs.formRef.validate((valid) => {
         if (!valid) return;
 
         this.loading = true;
-        [this.size, this.exportSize] = [this.exportSize, this.size];
-
-        this.export();
-
-        [this.size, this.exportSize] = [this.exportSize, this.size];
-        setTimeout(() => (this.loading = false), 1500);
+        this.export().finally(() => {
+          setTimeout(() => (this.loading = false), 1000);
+        });
       });
     },
   },
   computed: {
-    logoColor() {
-      return this.inverseLogoColor ? this.backgroundColor : this.color;
-    },
-    logoBackgroundColor() {
-      return this.inverseLogoColor ? this.color : this.backgroundColor;
-    },
     fileName() {
-      return `ORID-${this.name}`;
+      return `ORID-${this.form.name}`;
     },
     content() {
-      return `qrid v1\n[Main]\nName=${this.name}\nPhone=${this.phone}`;
+      return `qrid v1\n[Main]\nName=${this.form.name}\nPhoneFirst4=${this.form.phone.slice(0, 4)}\nSalt=${this.salt}\nPhoneHash=${sjcl.codec.hex.fromBits(sjcl.hash.sha256.hash(this.form.phone + this.salt))}`;
     },
     preview() {
       var svg = new QRCode({
