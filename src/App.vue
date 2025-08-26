@@ -32,7 +32,7 @@
           <span>Preview</span>
         </div>
       </template>
-      <div v-loading="loading" style="padding-bottom: 1rem;" ref="previewPane">
+      <div v-loading="loading" style="padding: 2em;" ref="previewPane">
         <svg :width="size" :height="size" id="svgcontainer" ref="svgcontainer">
           <svg :width="size" :height="size" version="1.1" xmlns="http://www.w3.org/2000/svg"
             xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -118,9 +118,8 @@ export default {
         name: "",
         phone: "",
       },
-      size: 350,
+      size: 200,
       exportType: "PNG",
-      exportSize: 1200,
       loading: false,
       formValid: false,
       salt: salt,
